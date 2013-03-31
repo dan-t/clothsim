@@ -1,0 +1,205 @@
+{-# LANGUAGE PatternGuards #-}
+
+import System.Exit (exitSuccess)
+import qualified Debug.Trace as T
+import Control.Monad (forM_, when)
+import Control.Monad.ST (runST)
+import Control.Applicative ((<$>))
+import qualified Data.Vector as Vec
+import qualified Data.Vector.Mutable as VM
+import Data.Vector ((!), (//))
+import qualified Graphics.UI.GLFW as GLFW
+import qualified Graphics.Rendering.OpenGL.Raw as GL
+import qualified Gamgine.Gfx as GFX
+import qualified Gamgine.Math.Vect as V
+import qualified Gamgine.Math.Matrix as M
+import qualified Gamgine.Math.Utils as MU
+import Gamgine.Math.Vect
+import Gamgine.Gfx ((<<<*), (<<<))
+
+
+type Point  = V.Vect
+type Points = Vec.Vector Point
+
+gridWidth   = 20 :: Int
+gridHeight  = 20 :: Int
+
+dGridWidth  = fromIntegral gridWidth
+dGridHeight = fromIntegral gridHeight
+
+borderWidth = (fromIntegral $ max gridWidth gridHeight) / 5
+edgeLength  =  1 :: Double
+
+
+makeGrid :: Int -> Int -> Double -> Points
+makeGrid width length edgeLength =
+   Vec.generate (width * length) $ \i ->
+      let (quot, rem) = i `quotRem` width
+          x           = fromIntegral rem * edgeLength
+          y           = fromIntegral quot * edgeLength
+          in (x:.y:.0)
+
+
+main :: IO ()
+main = do
+   initGLFW
+   appLoop Nothing $ makeGrid gridWidth gridHeight edgeLength
+
+
+appLoop :: Maybe Int -> Points -> IO ()
+appLoop currIdx points = do
+   GL.glClearColor 0 0 0 0
+   GL.glClear (fromIntegral GL.gl_COLOR_BUFFER_BIT)
+   GL.glColor3f <<<* (1,1,1)
+   renderLines points
+   let pts' = applyConstraints $ points
+
+   mworld    <- mousePosInWorldCoords
+   gridTrans <- gridTranslation
+   let mgrid = mworld - gridTrans
+
+   pressed <- GLFW.mouseButtonIsPressed GLFW.MouseButton0
+   let currIdx' | not pressed        = Nothing
+                | Nothing <- currIdx = findClosestPoint mgrid pts'
+                | otherwise          = currIdx
+
+   case currIdx' of
+        Just idx -> do
+           GL.glPointSize 10
+           GL.glColor3f <<<* (1,0,0)
+           GFX.withPrimitive GL.gl_POINTS $
+              GFX.vertex $ pts' ! idx
+
+           let pts'' | pressed   = pts' // [(idx, mgrid)]
+                     | otherwise = pts'
+
+           GLFW.swapBuffers
+           appLoop currIdx' pts''
+
+        _        -> do
+           GLFW.swapBuffers
+           appLoop currIdx' pts'
+
+
+renderLines :: Points -> IO ()
+renderLines points = do
+   -- verticals
+   forM_ [0 .. gridWidth - 1] $ \x ->
+      GFX.withPrimitive GL.gl_LINE_STRIP $
+         forM_ [0 .. gridHeight - 1] $ \y ->
+            GFX.vertex $ points ! (y * gridWidth + x)
+
+   -- horizontals
+   forM_ [0 .. gridHeight - 1] $ \y ->
+      GFX.withPrimitive GL.gl_LINE_STRIP $
+         forM_ [0 .. gridWidth - 1] $ \x ->
+            GFX.vertex $ points ! (y * gridWidth + x)
+
+
+findClosestPoint :: V.Vect -> Points -> Maybe Int
+findClosestPoint pos points =
+   let (_, idx, _) = Vec.foldl' compDist (0, -1, edgeLength) points
+       in if idx == -1 then Nothing else Just idx
+   where
+      compDist (i, idx, dist) p =
+        let dist' = V.len $ pos - p
+            in if dist' < dist
+                  then (i + 1, i, dist')
+                  else (i + 1, idx, dist)
+
+
+applyConstraints :: Points -> Points
+applyConstraints points = runST (apply points)
+   where
+      apply points = do
+         mutPts <- Vec.thaw points
+         forM_ [0 .. (gridWidth * gridHeight - 1)] $ \i -> do
+            let (y, x) = i `quotRem` gridWidth
+            when (x > 0)                $ constrain i (i - 1) mutPts
+            when (x < (gridWidth - 1))  $ constrain i (i + 1) mutPts
+            when (y > 0)                $ constrain i (i - gridWidth) mutPts
+            when (y < (gridHeight - 1)) $ constrain i (i + gridWidth) mutPts
+
+         Vec.freeze mutPts
+
+      constrain i j pts = do
+         iPt <- VM.read pts i
+         jPt <- VM.read pts j
+         let diff = iPt - jPt
+             norm = V.normalize diff
+             len  = V.len diff
+
+         if len >= edgeLength
+            then do
+               let t  = (len - edgeLength) * 0.2
+                   tv = V.v3 t t t
+               VM.write pts i (iPt - (norm * tv))
+               VM.write pts j (jPt + (norm * tv))
+            else do
+               let t  = (edgeLength - len) * 0.2
+                   tv = V.v3 t t t
+               VM.write pts i (iPt + (norm * tv))
+               VM.write pts j (jPt - (norm * tv))
+
+
+initGLFW :: IO ()
+initGLFW = do
+   GLFW.initialize
+   GLFW.openWindow GLFW.defaultDisplayOptions {
+      GLFW.displayOptions_width             = 800,
+      GLFW.displayOptions_height            = 800,
+      GLFW.displayOptions_windowIsResizable = True
+      }
+
+   GLFW.setWindowBufferSwapInterval 1
+   GLFW.setWindowSizeCallback resize
+   GLFW.setWindowCloseCallback quit
+   GLFW.setMousePositionCallback $ \x y -> return ()
+
+   where
+      resize width height = do
+         let (right, top) = frustumRightAndTop width height
+
+	 GL.glViewport 0 0 (fromIntegral width) (fromIntegral height)
+	 GL.glMatrixMode GL.gl_PROJECTION
+	 GL.glLoadIdentity
+         GL.glOrtho 0 (GFX.floatToFloat right) 0 (GFX.floatToFloat top) (-1) 1
+         
+         GL.glMatrixMode GL.gl_MODELVIEW
+         GL.glLoadIdentity
+         gridTrans <- gridTranslation
+         GL.glTranslatef <<< gridTrans
+         
+      quit = GLFW.closeWindow >> GLFW.terminate >> exitSuccess
+
+
+mousePosInWorldCoords :: IO V.Vect
+mousePosInWorldCoords = do
+   (width, height)  <- GLFW.getWindowDimensions
+   (mouseX, mouseY) <- GLFW.getMousePosition
+   let (dWidth, dHeight) = (fromIntegral width, fromIntegral height)
+       (right, top)      = frustumRightAndTop width height
+       worldToWin        = M.windowMatrix dWidth dHeight `multmm` M.mkOrtho 0 right 0 top (-1) 1
+       winToWorld        = M.inverseOrIdentity worldToWin
+       mouseVec          = V.v4 (fromIntegral mouseX) (fromIntegral mouseY) 0 1
+
+   return $ V.setElem 2 0 $ V.fromVect4 $ winToWorld `multmv` mouseVec
+
+
+gridTranslation :: IO V.Vect
+gridTranslation = do
+   (width, height) <- GLFW.getWindowDimensions
+   let (right, top) = frustumRightAndTop width height
+       transX       = (right - dGridWidth) / 2
+       transY       = (top - dGridHeight) / 2
+   return (transX:.transY:.0)
+
+
+frustumRightAndTop :: Int -> Int -> (Double, Double)
+frustumRightAndTop winWidth winHeight =
+   let dWidth  = fromIntegral winWidth  :: Double
+       dHeight = fromIntegral winHeight :: Double
+       maxSide = max dGridWidth dGridHeight + (2 * borderWidth)
+       in if dWidth < dHeight
+             then (maxSide, maxSide * (dHeight / dWidth))
+             else (maxSide * (dWidth / dHeight), maxSide)
