@@ -1,0 +1,22 @@
+Some kind of bogus cloth simulation.
+
+
+Make and Install:
+   Get Gamgine   -> https://github.com/dan-t/Gamgine
+   Get cabal-dev -> cabal install cabal-dev
+
+   cd clothsim
+   cabal-dev add-source <Path-To-Gamgine-Dir>
+   cabal-dev install
+
+
+Prerequisites:
+   GLFW  installed -> www.glfw.org
+
+
+Usage:
+   clothsim
+
+
+Control:
+   Pick the cloth by holding the left mouse button pressed
