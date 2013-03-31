@@ -27,8 +27,13 @@ gridHeight  = 20 :: Int
 dGridWidth  = fromIntegral gridWidth
 dGridHeight = fromIntegral gridHeight
 
-borderWidth = (fromIntegral $ max gridWidth gridHeight) / 5
+borderWidth = (fromIntegral $ max gridWidth gridHeight) / 2
 edgeLength  =  1 :: Double
+
+fixedPoint :: Int -> Bool
+fixedPoint i =
+   i == gridWidth * (gridHeight - 1)
+      || i == (gridWidth * gridHeight) - 1
 
 
 makeGrid :: Int -> Int -> Double -> Points
@@ -52,7 +57,7 @@ appLoop currIdx points = do
    GL.glClear (fromIntegral GL.gl_COLOR_BUFFER_BIT)
    GL.glColor3f <<<* (1,1,1)
    renderLines points
-   let pts' = applyConstraints $ points
+   let pts' = applyGravity . applyConstraints $ points
 
    mworld    <- mousePosInWorldCoords
    gridTrans <- gridTranslation
@@ -108,6 +113,21 @@ findClosestPoint pos points =
                   else (i + 1, idx, dist)
 
 
+applyGravity :: Points -> Points
+applyGravity points = runST (apply points)
+   where
+      apply points = do
+         mutPts <- Vec.thaw points
+         forM_ [0 .. (gridWidth * gridHeight - 1)] $ \i -> do
+            when (not $ fixedPoint i) $ do
+               pt <- VM.read mutPts i
+               VM.write mutPts i (pt - gravity)
+
+         Vec.freeze mutPts
+
+      gravity = (0:. (edgeLength * 0.01) :.0:.())
+
+
 applyConstraints :: Points -> Points
 applyConstraints points = runST (apply points)
    where
@@ -131,15 +151,15 @@ applyConstraints points = runST (apply points)
 
          if len >= edgeLength
             then do
-               let t  = (len - edgeLength) * 0.2
+               let t  = (len - edgeLength) * 0.5
                    tv = V.v3 t t t
-               VM.write pts i (iPt - (norm * tv))
-               VM.write pts j (jPt + (norm * tv))
+               when (not $ fixedPoint i) $ VM.write pts i (iPt - (norm * tv))
+               when (not $ fixedPoint j) $ VM.write pts j (jPt + (norm * tv))
             else do
-               let t  = (edgeLength - len) * 0.2
+               let t  = (edgeLength - len) * 0.5
                    tv = V.v3 t t t
-               VM.write pts i (iPt + (norm * tv))
-               VM.write pts j (jPt - (norm * tv))
+               when (not $ fixedPoint i) $ VM.write pts i (iPt + (norm * tv))
+               when (not $ fixedPoint j) $ VM.write pts j (jPt - (norm * tv))
 
 
 initGLFW :: IO ()
