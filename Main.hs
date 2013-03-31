@@ -55,7 +55,6 @@ appLoop :: Maybe Int -> Points -> IO ()
 appLoop currIdx points = do
    GL.glClearColor 0 0 0 0
    GL.glClear (fromIntegral GL.gl_COLOR_BUFFER_BIT)
-   GL.glColor3f <<<* (1,1,1)
    renderLines points
    let pts' = applyGravity . applyConstraints $ points
 
@@ -88,6 +87,7 @@ appLoop currIdx points = do
 
 renderLines :: Points -> IO ()
 renderLines points = do
+   GL.glColor3f <<<* (1,1,1)
    -- verticals
    forM_ [0 .. gridWidth - 1] $ \x ->
       GFX.withPrimitive GL.gl_LINE_STRIP $
