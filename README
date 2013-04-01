@@ -1,6 +1,10 @@
 Some kind of bogus cloth simulation.
 
 
+Prerequisites:
+   GLFW  installed -> www.glfw.org
+
+
 Make and Install:
    Get Gamgine   -> https://github.com/dan-t/Gamgine
    Get cabal-dev -> cabal install cabal-dev
@@ -8,10 +12,6 @@ Make and Install:
    cd clothsim
    cabal-dev add-source <Path-To-Gamgine-Dir>
    cabal-dev install
-
-
-Prerequisites:
-   GLFW  installed -> www.glfw.org
 
 
 Usage:
