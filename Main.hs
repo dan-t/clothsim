@@ -27,7 +27,7 @@ gridHeight  = 20 :: Int
 dGridWidth  = fromIntegral gridWidth
 dGridHeight = fromIntegral gridHeight
 
-borderWidth = (fromIntegral $ max gridWidth gridHeight) / 2
+borderWidth = (fromIntegral $ max gridWidth gridHeight)
 edgeLength  =  1 :: Double
 
 fixedPoint :: Int -> Bool
@@ -125,7 +125,7 @@ applyGravity points = runST (apply points)
 
          Vec.freeze mutPts
 
-      gravity = (0:. (edgeLength * 0.01) :.0:.())
+      gravity = (0:. (edgeLength * 0.02) :.0:.())
 
 
 applyConstraints :: Points -> Points
@@ -145,21 +145,27 @@ applyConstraints points = runST (apply points)
       constrain i j pts = do
          iPt <- VM.read pts i
          jPt <- VM.read pts j
-         let diff = iPt - jPt
-             norm = V.normalize diff
-             len  = V.len diff
+         let diff    = iPt - jPt
+             norm    = V.normalize diff
+             len     = V.len diff
+             iFix    = fixedPoint i
+             jFix    = fixedPoint j
+             ptsAway = len >= edgeLength
+             disp    = abs (len - edgeLength)
 
-         if len >= edgeLength
-            then do
-               let t  = (len - edgeLength) * 0.5
-                   tv = V.v3 t t t
-               when (not $ fixedPoint i) $ VM.write pts i (iPt - (norm * tv))
-               when (not $ fixedPoint j) $ VM.write pts j (jPt + (norm * tv))
-            else do
-               let t  = (edgeLength - len) * 0.5
-                   tv = V.v3 t t t
-               when (not $ fixedPoint i) $ VM.write pts i (iPt + (norm * tv))
-               when (not $ fixedPoint j) $ VM.write pts j (jPt - (norm * tv))
+             iT | iFix      = 0
+                | jFix      = disp
+                | otherwise = disp * 0.5
+
+             jT | jFix      = 0
+                | iFix      = disp
+                | otherwise = disp * 0.5
+
+             iVec = norm * V.v3 iT iT iT
+             jVec = norm * V.v3 jT jT jT
+
+         VM.write pts i (if ptsAway then iPt - iVec else iPt + iVec)
+         VM.write pts j (if ptsAway then jPt + jVec else jPt - jVec)
 
 
 initGLFW :: IO ()
