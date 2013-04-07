@@ -15,7 +15,7 @@ import qualified Gamgine.Math.Vect as V
 import qualified Gamgine.Math.Matrix as M
 import qualified Gamgine.Math.Utils as MU
 import Gamgine.Math.Vect
-import Gamgine.Gfx ((<<<*), (<<<))
+import Gamgine.Gfx ((<<<))
 
 
 type Point  = V.Vect
@@ -70,9 +70,9 @@ appLoop currIdx points = do
    case currIdx' of
         Just idx -> do
            GL.glPointSize 10
-           GL.glColor3f <<<* (1,0,0)
+           GL.glColor3f <<< ((1,0,0) :: GFX.RGB)
            GFX.withPrimitive GL.gl_POINTS $
-              GFX.vertex $ pts' ! idx
+              GL.glVertex3f <<< (pts' ! idx)
 
            let pts'' | pressed   = pts' // [(idx, mgrid)]
                      | otherwise = pts'
@@ -87,18 +87,18 @@ appLoop currIdx points = do
 
 renderLines :: Points -> IO ()
 renderLines points = do
-   GL.glColor3f <<<* (1,1,1)
+   GL.glColor3f <<< ((1,1,1) :: GFX.RGB)
    -- verticals
    forM_ [0 .. gridWidth - 1] $ \x ->
       GFX.withPrimitive GL.gl_LINE_STRIP $
          forM_ [0 .. gridHeight - 1] $ \y ->
-            GFX.vertex $ points ! (y * gridWidth + x)
+            GL.glVertex3f <<< (points ! (y * gridWidth + x))
 
    -- horizontals
    forM_ [0 .. gridHeight - 1] $ \y ->
       GFX.withPrimitive GL.gl_LINE_STRIP $
          forM_ [0 .. gridWidth - 1] $ \x ->
-            GFX.vertex $ points ! (y * gridWidth + x)
+            GL.glVertex3f <<< (points ! (y * gridWidth + x))
 
 
 findClosestPoint :: V.Vect -> Points -> Maybe Int
