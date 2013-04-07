@@ -184,7 +184,7 @@ initGLFW = do
 
    where
       resize width height = do
-         let (right, top) = frustumRightAndTop width height
+         let M.Frustum {M.right = right, M.top = top} = frustum (width, height)
 
 	 GL.glViewport 0 0 (fromIntegral width) (fromIntegral height)
 	 GL.glMatrixMode GL.gl_PROJECTION
@@ -201,31 +201,25 @@ initGLFW = do
 
 mousePosInWorldCoords :: IO V.Vect
 mousePosInWorldCoords = do
-   (width, height)  <- GLFW.getWindowDimensions
-   (mouseX, mouseY) <- GLFW.getMousePosition
-   let (dWidth, dHeight) = (fromIntegral width, fromIntegral height)
-       (right, top)      = frustumRightAndTop width height
-       worldToWin        = M.windowMatrix dWidth dHeight `multmm` M.mkOrtho 0 right 0 top (-1) 1
-       winToWorld        = M.inverseOrIdentity worldToWin
-       mouseVec          = V.v4 (fromIntegral mouseX) (fromIntegral mouseY) 0 1
-
-   return $ V.setElem 2 0 $ V.fromVect4 $ winToWorld `multmv` mouseVec
+   winDims  <- GLFW.getWindowDimensions
+   mousePos <- GLFW.getMousePosition
+   let winToWorldMtx = M.mkWinToWorldMatrix winDims (frustum winDims)
+   return $ V.setElem 2 0 $ M.winToWorld winToWorldMtx mousePos
 
 
 gridTranslation :: IO V.Vect
 gridTranslation = do
-   (width, height) <- GLFW.getWindowDimensions
-   let (right, top) = frustumRightAndTop width height
-       transX       = (right - dGridWidth) / 2
-       transY       = (top - dGridHeight) / 2
+   M.Frustum {M.right = r, M.top = t} <- frustum <$> GLFW.getWindowDimensions
+   let transX = (r - dGridWidth) / 2
+       transY = (t - dGridHeight) / 2
    return (transX:.transY:.0)
 
 
-frustumRightAndTop :: Int -> Int -> (Double, Double)
-frustumRightAndTop winWidth winHeight =
-   let dWidth  = fromIntegral winWidth  :: Double
-       dHeight = fromIntegral winHeight :: Double
+frustum :: (Int, Int) -> M.Frustum
+frustum (width, height) =
+   let dWidth  = fromIntegral width  :: Double
+       dHeight = fromIntegral height :: Double
        maxSide = max dGridWidth dGridHeight + (2 * borderWidth)
-       in if dWidth < dHeight
-             then (maxSide, maxSide * (dHeight / dWidth))
-             else (maxSide * (dWidth / dHeight), maxSide)
+       (right, top) | dWidth < dHeight = (maxSide, maxSide * (dHeight / dWidth))
+                    | otherwise        = (maxSide * (dWidth / dHeight), maxSide)
+       in M.Frustum 0 right 0 top (-1) 1
