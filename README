@@ -7,12 +7,9 @@ Make and Install:
    git clone https://github.com/dan-t/Gamgine
    git clone https://github.com/dan-t/clothsim
 
-   cd layers
+   cd clothsim
    cabal-dev add-source ../Gamgine
    cabal-dev install
-
-   (If the Gamgine directory isn't in the same directoy than the layers one,
-    than 'Include-dirs' in 'layers.cabal' has to be modified)
 
 
 Usage:
