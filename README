@@ -1,17 +1,18 @@
 Some kind of bogus cloth simulation.
 
 
-Prerequisites:
-   GLFW  installed -> www.glfw.org
-
-
 Make and Install:
-   Get Gamgine   -> https://github.com/dan-t/Gamgine
-   Get cabal-dev -> cabal install cabal-dev
+   cabal install cabal-dev
 
-   cd clothsim
-   cabal-dev add-source <Path-To-Gamgine-Dir>
+   git clone https://github.com/dan-t/Gamgine
+   git clone https://github.com/dan-t/clothsim
+
+   cd layers
+   cabal-dev add-source ../Gamgine
    cabal-dev install
+
+   (If the Gamgine directory isn't in the same directoy than the layers one,
+    than 'Include-dirs' in 'layers.cabal' has to be modified)
 
 
 Usage:
