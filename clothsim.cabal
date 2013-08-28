@@ -17,4 +17,4 @@ source-repository head
 Executable clothsim
   Main-is:       Main.hs
   ghc-options:   -funbox-strict-fields
-  Build-Depends: base >= 3 && < 5, vector, GLFW-b, OpenGLRaw, Gamgine
+  Build-Depends: base >= 3 && < 5, vector, GLFW-b < 1.0.0, OpenGLRaw, Gamgine
