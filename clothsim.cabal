@@ -1,20 +1,29 @@
-Name:          clothsim
-Version:       0.0.1
-License:       BSD3
-License-file:  LICENSE
-Author:        Daniel Trstenjak
-Maintainer:    daniel.trstenjak@gmail.com
-Build-Type:    Simple
-Category:      Utils
-Cabal-Version: >=1.6
-Synopsis:      Some kind of bogus cloth simulation.
-Description:   Some kind of bogus cloth simulation.
-
+name: clothsim
+version: 0.0.1
+cabal-version: >=1.6
+build-type: Simple
+license: BSD3
+license-file: LICENSE
+maintainer: daniel.trstenjak@gmail.com
+synopsis: Some kind of bogus cloth simulation.
+description:
+    Some kind of bogus cloth simulation.
+category: Utils
+author: Daniel Trstenjak
+ 
 source-repository head
-  type:     git
-  location: https://github.com/dan-t/clothsim
-
-Executable clothsim
-  Main-is:       Main.hs
-  ghc-options:   -funbox-strict-fields
-  Build-Depends: base >= 3 && < 5, vector, GLFW-b < 1.0.0, OpenGLRaw, Gamgine
+    type: git
+    location: https://github.com/dan-t/clothsim
+ 
+executable clothsim
+    build-depends:
+        base >=3 && <5,
+        vector -any,
+        GLFW-b <1.0.0,
+        OpenGLRaw -any,
+        Gamgine -any
+    main-is: Main.hs
+    buildable: True
+    ghc-options: -funbox-strict-fields
+ 
+ 
