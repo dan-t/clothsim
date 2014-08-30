@@ -47,22 +47,30 @@ makeGrid width length edgeLength =
 
 main :: IO ()
 main = do
-   initGLFW
-   appLoop Nothing $ makeGrid gridWidth gridHeight edgeLength
+   GLFW.init
+   GLFW.windowHint $ GLFW.WindowHint'Resizable True
+   GLFW.swapInterval 1
+   Just win <- GLFW.createWindow 800 800 "" Nothing Nothing
+   initCallbacks win
+   GLFW.makeContextCurrent (Just win)
+
+   appLoop win Nothing $ makeGrid gridWidth gridHeight edgeLength
 
 
-appLoop :: Maybe Int -> Points -> IO ()
-appLoop currIdx points = do
+appLoop :: GLFW.Window -> Maybe Int -> Points -> IO ()
+appLoop win currIdx points = do
+   GLFW.pollEvents
+
    GL.glClearColor 0 0 0 0
    GL.glClear (fromIntegral GL.gl_COLOR_BUFFER_BIT)
    renderLines points
    let pts' = applyGravity . applyConstraints $ points
 
-   mworld    <- mousePosInWorldCoords
-   gridTrans <- gridTranslation
+   mworld    <- mousePosInWorldCoords win
+   gridTrans <- gridTranslation win
    let mgrid = mworld - gridTrans
 
-   pressed <- GLFW.mouseButtonIsPressed GLFW.MouseButton0
+   pressed <- isButtonPressed win GLFW.MouseButton'1
    let currIdx' | not pressed        = Nothing
                 | Nothing <- currIdx = findClosestPoint mgrid pts'
                 | otherwise          = currIdx
@@ -77,12 +85,14 @@ appLoop currIdx points = do
            let pts'' | pressed   = pts' // [(idx, mgrid)]
                      | otherwise = pts'
 
-           GLFW.swapBuffers
-           appLoop currIdx' pts''
+           GLFW.swapBuffers win
+           appLoop win currIdx' pts''
 
         _        -> do
-           GLFW.swapBuffers
-           appLoop currIdx' pts'
+           GLFW.swapBuffers win
+           appLoop win currIdx' pts'
+   where
+      isButtonPressed win button = (== GLFW.MouseButtonState'Pressed) <$> GLFW.getMouseButton win button
 
 
 renderLines :: Points -> IO ()
@@ -168,48 +178,38 @@ applyConstraints points = runST (apply points)
          VM.write pts j (if ptsAway then jPt + jVec else jPt - jVec)
 
 
-initGLFW :: IO ()
-initGLFW = do
-   GLFW.initialize
-   GLFW.openWindow GLFW.defaultDisplayOptions {
-      GLFW.displayOptions_width             = 800,
-      GLFW.displayOptions_height            = 800,
-      GLFW.displayOptions_windowIsResizable = True
-      }
-
-   GLFW.setWindowBufferSwapInterval 1
-   GLFW.setWindowSizeCallback resize
-   GLFW.setWindowCloseCallback quit
-   GLFW.setMousePositionCallback $ \x y -> return ()
-
+initCallbacks :: GLFW.Window -> IO ()
+initCallbacks win = do
+   GLFW.setWindowSizeCallback win (Just resize)
+   GLFW.setWindowCloseCallback win (Just quit)
    where
-      resize width height = do
+      resize win width height = do
          let M.Frustum {M.right = right, M.top = top} = frustum (width, height)
 
 	 GL.glViewport 0 0 (fromIntegral width) (fromIntegral height)
 	 GL.glMatrixMode GL.gl_PROJECTION
 	 GL.glLoadIdentity
          GL.glOrtho 0 (GFX.floatToFloat right) 0 (GFX.floatToFloat top) (-1) 1
-         
+
          GL.glMatrixMode GL.gl_MODELVIEW
          GL.glLoadIdentity
-         gridTrans <- gridTranslation
+         gridTrans <- gridTranslation win
          GL.glTranslatef <<< gridTrans
-         
-      quit = GLFW.closeWindow >> GLFW.terminate >> exitSuccess
+
+      quit win = GLFW.destroyWindow win >> GLFW.terminate >> exitSuccess
 
 
-mousePosInWorldCoords :: IO V.Vect
-mousePosInWorldCoords = do
-   winDims  <- GLFW.getWindowDimensions
-   mousePos <- GLFW.getMousePosition
+mousePosInWorldCoords :: GLFW.Window -> IO V.Vect
+mousePosInWorldCoords win = do
+   winDims  <- GLFW.getWindowSize win
+   (cx, cy) <- GLFW.getCursorPos win
    let winToWorldMtx = M.mkWinToWorldMatrix winDims (frustum winDims)
-   return $ V.setElem 2 0 $ M.winToWorld winToWorldMtx mousePos
+   return $ V.setElem 2 0 $ M.winToWorld winToWorldMtx (floor cx, floor cy)
 
 
-gridTranslation :: IO V.Vect
-gridTranslation = do
-   M.Frustum {M.right = r, M.top = t} <- frustum <$> GLFW.getWindowDimensions
+gridTranslation :: GLFW.Window -> IO V.Vect
+gridTranslation win = do
+   M.Frustum {M.right = r, M.top = t} <- frustum <$> GLFW.getWindowSize win
    let transX = (r - dGridWidth) / 2
        transY = (t - dGridHeight) / 2
    return (transX:.transY:.0)
